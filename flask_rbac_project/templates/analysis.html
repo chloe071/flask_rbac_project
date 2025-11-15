@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Analysis & Reporting for {{ scenario.name }}</h2>
+
+<canvas id="actionBreakdownChart" width="400" height="200"></canvas>
+<canvas id="userActionsChart" width="400" height="200"></canvas>
+<h3>Timeline of Actions</h3>
+<ul id="timelineList"></ul>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+async function fetchAnalysis() {
+    const response = await fetch(`/analysis/{{ scenario.id }}/data`);
+    const data = await response.json();
+
+    // Action Breakdown pie chart
+    const ctx1 = document.getElementById('actionBreakdownChart').getContext('2d');
+    const breakdownChart = new Chart(ctx1, {
+        type: 'pie',
+        data: {
+            labels: ['Containment', 'Isolation', 'Communication'],
+            datasets: [{
+                label: 'Actions Breakdown',
+                data: [
+                    data.breakdown.containment,
+                    data.breakdown.isolation,
+                    data.breakdown.communication
+                ],
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(255, 159, 64, 0.7)',
+                    'rgba(153, 102, 255, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 159, 64, 1)',
+                    'rgba(153, 102, 255, 1)'
+                ],
+                borderWidth: 1
+            }]
+        }
+    });
+
+    // User actions bar chart
+    const ctx2 = document.getElementById('userActionsChart').getContext('2d');
+    const userLabels = Object.keys(data.user_actions);
+    const userCounts = Object.values(data.user_actions);
+    const userChart = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+            labels: userLabels,
+            datasets: [{
+                label: '# Actions by User',
+                data: userCounts,
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    // Timeline list
+    const timelineList = document.getElementById('timelineList');
+    data.timeline.forEach(event => {
+        const li = document.createElement('li');
+        li.textContent = `[${new Date(event.timestamp).toLocaleString()}] ${event.user} - ${event.action_type}: ${event.details}`;
+        timelineList.appendChild(li);
+    });
+}
+
+fetchAnalysis();
+</script>
+
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Edit User: {{ user.username }}</h2>
+<form method="POST">
+    <label>Username:
+        <input type="text" name="username" value="{{ user.username }}" required>
+    </label><br>
+    <label>Role:
+        <select name="role" required>
+            <option value="">Select role</option>
+            {% for role in ['analyst', 'lead', 'observer'] %}
+                <option value="{{ role }}" {% if role in (r.name for r in user.roles) %}selected{% endif %}>
+                    {{ role.capitalize() }}
+                </option>
+            {% endfor %}
+        </select>
+    </label><br>
+    <button type="submit">Save</button>
+</form>
+{% endblock %}

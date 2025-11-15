@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Communications with: {{ receiver_role }}</h2>
+
+<div>
+    <h4>Messages</h4>
+    <ul id="messagesList"></ul>
+</div>
+
+<div>
+    <h4>Send a Message</h4>
+    <select id="predefinedMessages">
+        <option value="">--Select a predefined message--</option>
+        {% for msg in predefined_messages %}
+        <option value="{{ msg.content }}">{{ msg.content }}</option>
+        {% endfor %}
+    </select>
+    <br>
+    <textarea id="customMessage" placeholder="Or write your custom message here"></textarea>
+    <br>
+    <button onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+async function fetchMessages() {
+    const res = await fetch(`/communications/{{ receiver_role }}`);
+    const messages = await res.json();
+    const list = document.getElementById('messagesList');
+    list.innerHTML = '';
+    messages.forEach(m => {
+        const li = document.createElement('li');
+        li.textContent = `[${new Date(m.timestamp).toLocaleTimeString()}] ${m.sender}: ${m.content}`;
+        list.appendChild(li);
+    });
+}
+
+async function sendMessage() {
+    let content = document.getElementById('predefinedMessages').value;
+    const custom = document.getElementById('customMessage').value.trim();
+
+    if (custom) {
+        content = custom;
+    }
+    if (!content) {
+        alert('Please enter or select a message.');
+        return;
+    }
+
+    const res = await fetch(`/communications/{{ receiver_role }}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content, predefined: !custom })
+    });
+    if (res.ok) {
+        document.getElementById('customMessage').value = '';
+        document.getElementById('predefinedMessages').value = '';
+        fetchMessages();
+    } else {
+        alert('Error sending message.');
+    }
+}
+
+// Refresh messages every 5 seconds
+fetchMessages();
+setInterval(fetchMessages, 5000);
+</script>
+{% endblock %}

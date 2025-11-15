@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{% if scenario %}Edit{% else %}Create{% endif %} Scenario</h2>
+<form method="POST">
+    <label>Name:
+        <input type="text" name="name" value="{{ scenario.name if scenario else '' }}" required>
+    </label><br>
+    <label>Description:<br>
+        <textarea name="description" rows="5" cols="50">{{ scenario.description if scenario else '' }}</textarea>
+    </label><br>
+    <button type="submit">{% if scenario %}Update{% else %}Create{% endif %}</button>
+</form>
+{% endblock %}

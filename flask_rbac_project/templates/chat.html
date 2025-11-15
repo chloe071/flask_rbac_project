@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Chat Room: {{ role|capitalize }}</h2>
+
+<ul id="messages" class="list-group mb-3" style="max-height: 300px; overflow-y: auto;"></ul>
+
+<form id="chatForm">
+    <input id="messageInput" autocomplete="off" placeholder="Enter message" class="form-control mb-2" />
+    <button type="submit" class="btn btn-primary">Send</button>
+</form>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const namespace = "{{ namespace }}";
+  const room = "{{ room }}";
+  const user = "{{ current_user.username }}";
+  const socket = io(namespace);
+
+  socket.emit('join', {room: room, user: user});
+
+  const form = document.getElementById('chatForm');
+  const input = document.getElementById('messageInput');
+  const messages = document.getElementById('messages');
+
+  form.onsubmit = function(e) {
+    e.preventDefault();
+    if (input.value.trim() === '') return;
+    socket.emit('send_message', {
+      room: room,
+      user: user,
+      message: input.value,
+      timestamp: new Date().toLocaleTimeString(),
+      user_id: "{{ current_user.id }}"
+     });
+    input.value = '';
+  };
+
+  socket.on('receive_message', function(data) {
+    const li = document.createElement('li');
+    li.classList.add('list-group-item');
+    let msgContent = data.message;
+
+    if(namespace === '/secure') {
+      msgContent = '🔒 ' + msgContent;
+    }
+
+    li.textContent = `[${data.timestamp}] ${data.user}: ${msgContent}`;
+    messages.appendChild(li);
+    messages.scrollTop = messages.scrollHeight;
+  });
+
+  socket.on('status', function(data) {
+    const li = document.createElement('li');
+    li.classList.add('list-group-item', 'text-muted', 'fst-italic');
+    li.textContent = data.msg;
+    messages.appendChild(li);
+  });
+
+  window.onbeforeunload = function() {
+    socket.emit('leave', {room: room, user: user});
+  };
+</script>
+{% endblock %}

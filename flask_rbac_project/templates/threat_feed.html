@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Live Threat Intelligence Feed</h2>
+<ul id="threatList"></ul>
+<script>
+function refreshFeed() {
+    fetch('/threat_feed')
+      .then(r => r.json())
+      .then(function(items){
+        const ul = document.getElementById('threatList');
+        ul.innerHTML = '';
+        items.forEach(function(item){
+            const li = document.createElement('li');
+            li.textContent = `[${item.type}] ${item.value} - ${item.desc}`;
+            ul.appendChild(li);
+        });
+    });
+}
+// Refresh every 15 seconds
+refreshFeed();
+setInterval(refreshFeed, 15000);
+</script>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Incident Timeline - {{ scenario.name }}</h2>
+
+<ul id="timeline">
+  <!-- Timeline entries will be injected here -->
+</ul>
+
+<script>
+  async function fetchTimeline() {
+    const response = await fetch(`/logs/{{ scenario.id }}`);
+    const logs = await response.json();
+    const timelineUl = document.getElementById('timeline');
+    timelineUl.innerHTML = '';
+    logs.forEach(log => {
+      const li = document.createElement('li');
+      li.textContent = `[${new Date(log.timestamp).toLocaleString()}] ${log.user} - ${log.action_type}: ${log.details}`;
+      timelineUl.appendChild(li);
+    });
+  }
+
+  // Refresh every 5 seconds to show updates
+  fetchTimeline();
+  setInterval(fetchTimeline, 5000);
+</script>
+{% endblock %}

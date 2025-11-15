@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Admin - Scenario Management</h2>
+
+<a href="{{ url_for('admin_create_scenario') }}">Create New Scenario</a>
+
+<table border="1">
+    <tr>
+        <th>ID</th><th>Name</th><th>Description</th><th>Created At</th><th>Actions</th>
+    </tr>
+    {% for scenario in scenarios %}
+    <tr>
+        <td>{{ scenario.id }}</td>
+        <td>{{ scenario.name }}</td>
+        <td>{{ scenario.description }}</td>
+        <td>{{ scenario.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>
+            <a href="{{ url_for('admin_edit_scenario', scenario_id=scenario.id) }}">Edit</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ current_user.username }}'s Achievements</h2>
+<div class="row">
+  {% for ub in user_badges %}
+    <div class="col-md-4">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">{{ ub.badge.name }}</h5>
+          <p class="card-text">{{ ub.badge.description }}</p>
+          <small class="text-muted">Awarded on {{ ub.awarded_at.strftime('%Y-%m-%d') }}</small>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <p>You have no badges yet. Keep participating!</p>
+  {% endfor %}
+</div>
+{% endblock %}

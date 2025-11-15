@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Incident Room: {{ room }}</h2>
+<ul id="messages"></ul>
+<form id="chatForm">
+    <input id="messageInput" autocomplete="off" placeholder="Type message..." />
+    <button>Send</button>
+</form>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+let socket = io();
+const room = "{{ room }}";
+const user = "{{ current_user.username }}";
+
+socket.emit('join', {room: room, user: user});
+
+const form = document.getElementById('chatForm');
+const input = document.getElementById('messageInput');
+const messages = document.getElementById('messages');
+
+form.onsubmit = function(e){
+    e.preventDefault();
+    if(input.value.trim()) {
+        socket.emit('send_message', {
+            room: room,
+            user: user,
+            message: input.value,
+            timestamp: new Date().toLocaleTimeString()
+        });
+        input.value = '';
+    }
+};
+
+socket.on('receive_message', function(msg){
+    const li = document.createElement('li');
+    li.textContent = `[${msg.timestamp}] ${msg.user}: ${msg.message}`;
+    messages.appendChild(li);
+});
+
+socket.on('status', function(msg){
+    const li = document.createElement('li');
+    li.textContent = msg.msg;
+    li.style.fontStyle = 'italic';
+    messages.appendChild(li);
+});
+
+window.onbeforeunload = function() {
+    socket.emit('leave', {room: room, user: user});
+};
+</script>
+{% endblock %}

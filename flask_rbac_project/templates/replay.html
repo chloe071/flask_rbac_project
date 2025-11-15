@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Incident Replay: {{ scenario.name }}</h2>
+
+<div id="replay-container" style="max-width: 700px; margin: auto;">
+    <div id="step-info" class="mb-3 p-3 border rounded" style="background:#f8f9fa;"></div>
+
+    <div class="mb-3">
+        <button id="prev-btn" class="btn btn-secondary" disabled>Previous</button>
+        <button id="next-btn" class="btn btn-primary">Next</button>
+    </div>
+
+    <div id="timeline-list" class="list-group" style="max-height:400px; overflow-y:auto;"></div>
+</div>
+
+<script>
+    // Safely injected JSON data as string
+    const timelineData = JSON.parse('{{ timeline|tojson|safe }}');
+
+    let currentIndex = 0;
+    const stepInfoEl = document.getElementById("step-info");
+    const timelineListEl = document.getElementById("timeline-list");
+    const prevBtn = document.getElementById("prev-btn");
+    const nextBtn = document.getElementById("next-btn");
+
+    function renderStep(index) {
+        const item = timelineData[index];
+        let infoHtml = `<strong>Time:</strong> ${new Date(item.timestamp).toLocaleString()}<br/>`;
+
+        if(item.type === "action") {
+            infoHtml += `<strong>User:</strong> ${item.user}<br/>`;
+            infoHtml += `<strong>Action Type:</strong> ${item.action_type}<br/>`;
+            infoHtml += `<strong>Details:</strong> ${item.details}<br/><br/>`;
+            infoHtml += `<em>${item.explanation}</em>`;
+        } else if(item.type === "forensic") {
+            infoHtml += `<strong>Forensic Finding:</strong> [${item.severity}] ${item.description}`;
+        }
+
+        stepInfoEl.innerHTML = infoHtml;
+
+        // Highlight selected
+        timelineListEl.querySelectorAll(".list-group-item").forEach((el, i) => {
+            el.classList.toggle("active", i === index);
+        });
+
+        prevBtn.disabled = (index === 0);
+        nextBtn.disabled = (index === timelineData.length - 1);
+    }
+
+    function populateTimelineList() {
+        timelineListEl.innerHTML = "";
+        timelineData.forEach((item, i) => {
+            let text = "";
+            if(item.type === "action") {
+                text = `${new Date(item.timestamp).toLocaleString()} - ${item.user}: ${item.action_type}`;
+            } else if(item.type === "forensic") {
+                text = `${new Date(item.timestamp).toLocaleString()} - [${item.severity}] Forensic Log`;
+            }
+            const li = document.createElement("button");
+            li.classList.add("list-group-item", "list-group-item-action");
+            li.textContent = text;
+            li.onclick = () => {
+                currentIndex = i;
+                renderStep(currentIndex);
+            };
+            timelineListEl.appendChild(li);
+        });
+    }
+
+    prevBtn.onclick = () => {
+        if(currentIndex > 0) {
+            currentIndex--;
+            renderStep(currentIndex);
+        }
+    };
+
+    nextBtn.onclick = () => {
+        if(currentIndex < timelineData.length - 1) {
+            currentIndex++;
+            renderStep(currentIndex);
+        }
+    };
+
+    populateTimelineList();
+    renderStep(currentIndex);
+</script>
+{% endblock %}

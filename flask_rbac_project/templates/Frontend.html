@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Vulnerability Scanner</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 20px;
+    background: #f9f9f9;
+  }
+   h1 {
+    color: #333;
+    margin-bottom: 20px;
+  }
+  label {
+    font-weight: bold;
+  }
+  input[type="url"] {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0 20px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  button {
+    background-color: #3a86ff;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  button:disabled {
+    background-color: #aacbff;
+    cursor: not-allowed;
+  }
+  .results {
+    margin-top: 30px;
+  }
+  .vuln {
+    background-color: white;
+    border: 1px solid #ddd;
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 5px;
+  }
+  .vuln-type {
+    font-weight: bold;
+    color: #e63946;
+  }
+  .vuln-url {
+    font-family: monospace;
+    color: #023047;
+  }
+   pre {
+    background-color: #eee;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+  <h1>Web Application Vulnerability Scanner</h1>
+  
+  <label for="urlInput">Enter target URL to scan:</label>
+  <input type="url" id="urlInput" placeholder="https://example.com" required />
+  
+  <button id="scanBtn">Start Scan</button>
+  
+  <div class="results" id="results"></div>
+
+  <script>
+  const scanBtn = document.getElementById('scanBtn');
+  const urlInput = document.getElementById('urlInput');
+  const resultsDiv = document.getElementById('results');
+
+  scanBtn.addEventListener('click', () => {
+    const targetUrl = urlInput.value.trim();
+    if (!targetUrl) {
+      alert("Please enter a valid URL.");
+      return;
+    }
+    
+    resultsDiv.innerHTML = "<p>Scanning in progress...</p>";
+    scanBtn.disabled = true;
+
+    fetch('/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: targetUrl })
+    })
+    .then(response => response.json())
+    .then(data => {
+      scanBtn.disabled = false;
+      displayResults(data);
+    })
+    .catch(err => {
+      scanBtn.disabled = false;
+      resultsDiv.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+    });
+  });
+ function displayResults(data) {
+    if (data.error) {
+      resultsDiv.innerHTML = `<p style="color:red;">${data.error}</p>`;
+      return;
+    }
+
+    let html = `<p>Forms scanned: <strong>${data.forms_scanned}</strong></p>`;
+    if (data.vulnerabilities_found.length === 0) {
+      html += "<p>No vulnerabilities found!</p>";
+    } else {
+      html += "<h2>Vulnerabilities Found:</h2>";
+      data.vulnerabilities_found.forEach(vuln => {
+        html += `<div class="vuln">
+          <p class="vuln-type">${vuln.vulnerability_type} <span style="color:#555;">(${vuln.severity || 'N/A'})</span></p>
+          <p class="vuln-url">URL: ${vuln.url || 'N/A'}</p>
+          ${vuln.payload ? `<pre>Payload: ${vuln.payload}</pre>` : ''}
+          ${vuln.details ? `<pre>Details: ${vuln.details}</pre>` : ''}
+          ${vuln.method ? `<p>HTTP Method: ${vuln.method}</p>` : ''}
+        </div>`;
+      });
+    }
+    resultsDiv.innerHTML = html;
+  }
+</script>
+</body>
+</html>

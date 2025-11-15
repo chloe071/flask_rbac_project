@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="card shadow rounded mt-4">
+  <div class="card-header bg-primary text-white">
+    <h3>Welcome, {{ current_user.username }}</h3>
+    <p class="mb-0">{{ role_name | capitalize }} Dashboard</p>
+  </div>
+  <div class="card-body">
+    <p>Access your features below:</p>
+    <ul class="list-unstyled">
+      {% if role_name == 'analyst' %}
+      <li><a href="{{ url_for('list_scenarios') }}" class="btn btn-outline-primary mb-2">View Scenarios</a></li>
+      <li><a href="{{ url_for('analysis', scenario_id=1) }}" class="btn btn-outline-primary mb-2">Analysis Reports</a></li>
+      {% elif role_name == 'lead' %}
+      <li><a href="{{ url_for('lead_dashboard') }}" class="btn btn-outline-primary mb-2">Admin Panel</a></li>
+      <li><a href="{{ url_for('collaborate', room='incident_room') }}" class="btn btn-outline-primary mb-2">Incident Collaboration</a></li>
+      {% elif role_name == 'observer' %}
+      <li><a href="{{ url_for('list_scenarios') }}" class="btn btn-outline-primary mb-2">View Scenarios (Read Only)</a></li>
+      {% endif %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

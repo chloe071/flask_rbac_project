@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Admin - User Management</h2>
+<table border="1">
+    <tr>
+        <th>ID</th><th>Username</th><th>Roles</th><th>Actions</th>
+    </tr>
+    {% for user in users %}
+    <tr>
+        <td>{{ user.id }}</td>
+        <td>{{ user.username }}</td>
+        <td>{{ ', '.join(role.name for role in user.roles) }}</td>
+        <td><a href="{{ url_for('admin_edit_user', user_id=user.id) }}">Edit</a></td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mt-4">{{ 'Edit Decision Tree' if tree else 'Create New Decision Tree' }}</h1>
+
+<form method="POST" class="mt-3">
+    <div class="mb-3">
+        <label for="name" class="form-label">Decision Tree Name</label>
+        <input type="text" id="name" name="name" class="form-control" required value="{{ tree.name if tree else '' }}">
+    </div>
+
+    <div class="mb-3">
+        <label for="description" class="form-label">Description (optional)</label>
+        <textarea id="description" name="description" class="form-control" rows="3">{{ tree.description if tree else '' }}</textarea>
+    </div>
+
+    <div class="mb-3">
+        <label for="json_data" class="form-label">Decision Tree JSON</label>
+        <textarea id="json_data" name="json_data" class="form-control" rows="10" required>{{ tree.json_data if tree else '{\n  \n}' }}</textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">{{ 'Update' if tree else 'Create' }}</button>
+</form>
+
+<script>
+// Basic JSON validation before submit
+document.querySelector('form').addEventListener('submit', function(event) {
+    const jsonText = document.getElementById('json_data').value;
+    try {
+        JSON.parse(jsonText);
+    } catch (e) {
+        alert('Invalid JSON: ' + e.message);
+        event.preventDefault();
+    }
+});
+</script>
+
+{% endblock %}

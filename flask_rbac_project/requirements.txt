@@ -1,0 +1,10 @@
+Flask
+Flask-Login
+Flask-SQLAlchemy
+Flask-Bcrypt
+Flask-Migrate
+Flask-SocketIO
+eventlet
+cryptography
+requests
+markdown2
