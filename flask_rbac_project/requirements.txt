@@ -7,6 +7,7 @@ Flask-SocketIO
 eventlet
 cryptography
 requests
-markdown2Flask-Caching
+markdown2
+Flask-Caching
 celery
 redis
