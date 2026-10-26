@@ -85,7 +85,8 @@ Tests use a temporary database, so they never modify your local data. They run a
 | API | Token compared in constant time (`hmac.compare_digest`); API disabled if no token is configured |
 | Secrets | Secret key and API token come from environment variables; no insecure defaults |
 | Cookies | `HttpOnly` and `SameSite=Lax` session cookies; debug mode off unless `FLASK_DEBUG=1` |
-| Dependencies | Dependabot checks Python and npm packages weekly |
+| PDF service | Node service binds to `127.0.0.1` only, so it can't be used from the network to render arbitrary pages |
+| Dependencies | Dependabot checks Python and npm packages weekly; npm packages updated to patched versions (0 known vulnerabilities) |
 
 ### Security fix log
 

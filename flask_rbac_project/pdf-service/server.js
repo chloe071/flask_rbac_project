@@ -28,6 +28,7 @@ app.post('/generate-pdf', async (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
+// Bind to localhost only: this service renders arbitrary HTML, so it must not be reachable from the network.
+app.listen(port, '127.0.0.1', () => {
   console.log(`PDF microservice listening on port ${port}`);
 });
