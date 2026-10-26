@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/flask_rbac_project"
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: "/flask_rbac_project/pdf-service"
+    schedule:
+      interval: weekly

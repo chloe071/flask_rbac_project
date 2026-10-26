@@ -1,115 +1,131 @@
-Flask RBAC Cyber Simulation Suite
-Overview
-This project is a role-based access control (RBAC) Flask web application that simulates real-world cybersecurity operations. It features user authentication, fine-grained roles, secure chat, scenario workflows, action logs, and threat feeds. Technologies used include Flask, SQLAlchemy, Bootstrap, Celery (for background jobs), and Redis.​
+# Flask RBAC Cyber Simulation Suite
 
-Features
-User registration/login/logout with role selection (lead, analyst, observer)
+![tests](https://github.com/chloe071/flask_rbac_project/actions/workflows/tests.yml/badge.svg)
 
-Role-protected dashboards and scenario management
+A role-based access control (RBAC) Flask web application that simulates cybersecurity incident-response exercises. Users take on roles (lead, analyst, observer) and work through scenarios with timed injects, action and forensic logs, chat, a threat feed, and PDF reports.
 
-Secure and public chat (real-time)
+## Features
 
-Threat intelligence feed
+- Registration, login, and logout with hashed passwords (Flask-Bcrypt)
+- Three roles with role-protected dashboards: **lead** (admin), **analyst**, **observer**
+- Scenario management with timed injects, branching paths, and replay
+- Action and forensic logging per scenario
+- Real-time public chat and an encrypted lead-only secure channel (Flask-SocketIO + Fernet)
+- Threat intelligence feed and achievement badges
+- PDF report generation through a separate Node/Puppeteer service
+- REST API secured with an API token
+- Caching (Flask-Caching) and background jobs (Celery + Redis)
 
-Action and forensic logging per scenario
+## Tech Stack
 
-Badges awarded for achievements
+Flask, Flask-Login, Flask-Bcrypt, Flask-SQLAlchemy, Flask-Migrate, Flask-SocketIO, Flask-Caching, Celery, Redis, Bootstrap 5, Node.js (Express + Puppeteer), pytest, GitHub Actions.
 
-PDF report generation (background/async)
+## Setup
 
-PDF report generation (background/async)
-
-REST API endpoints secured with API tokens
-
-Caching for faster performance
-
-Bootstrap-based clean UI
-
-Setup & Installation
-Clone the repository:
-
-text
-git clone https://github.com/yourusername/flask_rbac_project.git
-cd flask_rbac_project
-Create virtual environment and install dependencies:
-
-text
+```bash
+git clone https://github.com/chloe071/flask_rbac_project.git
+cd flask_rbac_project/flask_rbac_project
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+```
 
-Set up environment variables:
+Set environment variables:
 
-text
-export FLASK_SECRET_KEY="your-secret-key"
-export API_TOKEN="your-api-token"
-# For Celery/Redis:
+```bash
+export FLASK_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+export API_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"   # omit to disable the REST API
+# Optional, for Celery/Redis:
 export CELERY_BROKER_URL="redis://localhost:6379/0"
 export CELERY_RESULT_BACKEND="redis://localhost:6379/0"
-Run the Flask app:
+```
 
-text
-flask db upgrade  # If using Flask-Migrate
-flask run
-Start Redis (for asynchronous jobs):
+Create the database and run the app:
 
-text
-redis-server
+```bash
+flask --app app.py db upgrade
+python app.py
+```
 
-Run Celery worker (for async PDF/report tasks):
+### Creating a lead (admin) account
 
-text
-celery -A tasks.celery_app worker --loglevel=info
+Users can register as **analyst** or **observer** only. To make someone a lead, register them first, then run:
 
-Known Issues & Future Improvements
-Testing: test_app.py has some failing tests especially for protected POST routes and Celery async integration. Fixes planned: improved test setup for roles, better client/test configuration.​
+```bash
+flask --app app.py make-lead <username>
+```
 
-Background Jobs: Celery job triggers for PDF may require further debugging for full reliability and proper app context usage.
+### Optional services
 
-UI/UX: The interface uses Bootstrap and is clean, but could be made even more comprehensive and user-friendly—roadmap includes better scenario dashboards, alerts, visualizations, and onboarding flows.
+```bash
+redis-server                                          # background jobs
+celery -A tasks.celery_app worker --loglevel=info     # async report tasks
+cd pdf-service && npm install && node server.js       # PDF service on port 3000
+```
 
-Deployment: Not yet containerized (Docker), but instructions provided for local runs.
+## Running Tests
 
-How to Contribute
-Fork this repo.
+```bash
+pip install pytest
+pytest -q
+```
 
-Open issues for bugs or features.
+Tests use a temporary database, so they never modify your local data. They run automatically on every push via GitHub Actions.
 
-Submit pull requests with thorough descriptions.
+## Security Design
 
-Write tests for new features.
+| Control | How it works |
+|---|---|
+| Authentication | Flask-Login sessions; bcrypt-hashed passwords; minimum 8-character passwords |
+| Authorization | `roles_required` / `admin_required` decorators on dashboards, scenario management, and reports |
+| No self-promotion to admin | Registration only accepts `analyst` or `observer`; `lead` is granted by an operator via CLI |
+| Chat identity | Socket handlers use the server-side session to identify the sender, not client-supplied user IDs |
+| Secure channel | `/secure` namespace connections are rejected unless the user is a lead |
+| Message access | Users can only read messages addressed to a role they hold |
+| API | Token compared in constant time (`hmac.compare_digest`); API disabled if no token is configured |
+| Secrets | Secret key and API token come from environment variables; no insecure defaults |
+| Cookies | `HttpOnly` and `SameSite=Lax` session cookies; debug mode off unless `FLASK_DEBUG=1` |
+| Dependencies | Dependabot checks Python and npm packages weekly |
 
-Technologies Used
-Flask (Backend Web Framework)
+### Security fix log
 
-Flask-Login, Flask-Bcrypt, Flask-SQLAlchemy, Flask-Migrate
+A review of the app found and fixed these issues, each with a regression test in `test_app.py`:
 
-Flask-SocketIO for real-time chat
+1. **Privilege escalation at registration** — anyone could choose the `lead` (admin) role when signing up. Registration now accepts only `analyst` or `observer`.
+2. **Chat impersonation** — chat handlers trusted the `user` and `user_id` fields sent by the browser, so a user could post as someone else. They now use the logged-in session.
+3. **Unrestricted secure channel** — any logged-in user could open the lead-only secure chat or read lead messages. Both are now restricted by role.
+4. **Default credentials** — the app fell back to a hardcoded secret key and API token. Those defaults are gone.
 
-Flask-Caching and Redis
+## Known Issues & Future Improvements
 
-Celery for background tasks
+- **CSRF protection** is not yet enabled on forms (planned: Flask-WTF).
+- **Secure chat encryption key** is generated at startup, so encrypted messages can't be decrypted after a restart. Planned: load the key from an environment variable.
+- **Celery PDF jobs** may need more work for reliable app-context handling.
+- **Deployment**: not yet containerized (Docker).
+- **UI**: planned improvements to scenario dashboards, alerts, and onboarding.
 
-Bootstrap 5 (UI)
+## Project Structure
 
-SQLAlchemy (ORM)
+```text
+flask_rbac_project/
+├── app.py               # Flask app, models, routes, socket handlers, CLI
+├── tasks.py             # Celery tasks
+├── celery_worker.py     # Celery worker entry point
+├── test_app.py          # Route and security tests
+├── migrations/          # Flask-Migrate (Alembic) migrations
+├── pdf-service/         # Node/Puppeteer PDF generator
+├── templates/           # Jinja2 templates
+└── requirements.txt
+```
 
-pytest (Testing)
+## License
 
-Credits
-Project based on personal learning, code reviews, and help from the open-source community.
+MIT — see [MIT License.md](flask_rbac_project/MIT%20License.md).
 
-Special thanks to [RealPython] and other resources on Python/Flask best practices.​
+## Author
 
-License
-MIT License
-
-Author
 Chloe Cedano
 
-Notes for Recruiters:
-This project is designed to demonstrate full-stack development skills, with focus on scalable structure, security, async logic, UI, and realistic workflow simulation. 
-While not bug-free, it reflects persistence, ability to research and solve problems, and a solid codebase ready for further polishing. 
-Please see “Known Issues” and “Future Improvements” for transparency about current limitations and plans for the next steps.
+### Notes for Recruiters
 
-Want help or have questions? [Open an issue!]
+This project demonstrates full-stack development with a focus on access control, real-time features, and background processing. The security fix log above documents issues I found during review, how I fixed them, and the tests that verify each fix.

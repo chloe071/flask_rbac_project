@@ -14,6 +14,8 @@ from flask_login import (
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
 from functools import wraps
+import hmac
+import click
 from datetime import datetime
 from collections import Counter
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -26,7 +28,9 @@ import os
 
 # Setup config, cache, logging
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "replace-with-secure-secret")
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY") or os.urandom(32).hex()
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///users.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -44,7 +48,12 @@ login_manager.login_view = "login"
 migrate = Migrate(app, db)
 socketio = SocketIO(app)
 
-API_TOKEN = os.getenv("API_TOKEN", "your-secure-api-token")
+# The REST API is disabled unless API_TOKEN is set (no insecure default).
+API_TOKEN = os.getenv("API_TOKEN")
+
+# Roles users may choose at registration. "lead" (admin) must be granted
+# by the `flask --app app.py make-lead <username>` command.
+SELF_SERVICE_ROLES = ("analyst", "observer")
 
 # User loader callback
 @login_manager.user_loader
@@ -77,8 +86,10 @@ def admin_required(f):
 def require_api_token(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        token = request.headers.get('X-API-Token')
-        if not token or token != API_TOKEN:
+        if not API_TOKEN:
+            return jsonify({"error": "API disabled: API_TOKEN not configured"}), 503
+        token = request.headers.get('X-API-Token', '')
+        if not hmac.compare_digest(token, API_TOKEN):
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated_function
@@ -313,9 +324,16 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = bcrypt.generate_password_hash(request.form['password']).decode('utf-8')
+        username = (request.form.get('username') or '').strip()
+        raw_password = request.form.get('password') or ''
         role_name = request.form.get('role')
+        if not username or len(raw_password) < 8:
+            flash('Username and a password of at least 8 characters are required.')
+            return redirect(url_for('register'))
+        if role_name not in SELF_SERVICE_ROLES:
+            flash('Invalid role selection.')
+            return redirect(url_for('register'))
+        password = bcrypt.generate_password_hash(raw_password).decode('utf-8')
         user_check = User.query.filter_by(username=username).first()
         if user_check:
             flash('Username already exists.')
@@ -418,7 +436,7 @@ def view_badges():
 @app.route('/chat/<role>')
 @login_required
 def chat(role):
-    if role not in ('lead', 'analyst', 'observer'):
+    if role not in ('lead', 'analyst', 'observer') or not current_user.check_role(role):
         abort(403)
     namespace = '/secure' if role == 'lead' else '/public'
     room = f"{role}_room"
@@ -718,6 +736,8 @@ def api_performance(scenario_id):
 @app.route('/communications/<receiver_role>', methods=['GET'])
 @login_required
 def get_messages(receiver_role):
+    if not current_user.check_role(receiver_role):
+        abort(403)
     messages = Message.query.filter_by(receiver_role=receiver_role).order_by(Message.timestamp).all()
     return jsonify(
         [
@@ -795,26 +815,47 @@ def collaborate(room):
     return render_template("collaborate.html", room=room)
 
 
+def _socket_user():
+    """Return the logged-in user, or None. Identity comes from the server
+    session, never from client-supplied fields."""
+    return current_user if current_user.is_authenticated else None
+
+
+@socketio.on("connect")
+def handle_connect(auth=None):
+    if not _socket_user():
+        return False  # reject unauthenticated socket connections
+
+
 @socketio.on("join")
 def handle_join(data):
+    user = _socket_user()
+    if not user:
+        return
     room = data["room"]
     join_room(room)
-    emit("status", {"msg": f"{data['user']} has entered the room."}, room=room)
+    emit("status", {"msg": f"{user.username} has entered the room."}, room=room)
 
 
 @socketio.on("leave")
 def handle_leave(data):
+    user = _socket_user()
+    if not user:
+        return
     room = data["room"]
     leave_room(room)
-    emit("status", {"msg": f"{data['user']} has left the room."}, room=room)
+    emit("status", {"msg": f"{user.username} has left the room."}, room=room)
 
 
 @socketio.on("send_message")
 def handle_send_message(data):
+    user = _socket_user()
+    if not user:
+        return
     room = data["room"]
     emit(
         "receive_message",
-        {"user": data["user"], "message": data["message"], "timestamp": data["timestamp"]},
+        {"user": user.username, "message": data["message"], "timestamp": data.get("timestamp")},
         room=room,
     )
 
@@ -827,39 +868,82 @@ cipher_suite = Fernet(SECURE_CHAT_KEY)
 ROLE_NAMESPACES = {"lead": "/secure", "analyst": "/public", "observer": "/public"}
 
 
+@socketio.on("connect", namespace="/public")
+def public_connect(auth=None):
+    if not _socket_user():
+        return False
+
+
 @socketio.on("join", namespace="/public")
 def public_join(data):
+    user = _socket_user()
+    if not user:
+        return
     room = data["room"]
     join_room(room)
-    emit("status", {"msg": f"{data['user']} joined the public chat."}, room=room)
+    emit("status", {"msg": f"{user.username} joined the public chat."}, room=room)
 
 
 @socketio.on("send_message", namespace="/public")
 def public_message(data):
+    user = _socket_user()
+    if not user:
+        return
     room = data["room"]
     message_text = data["message"]
-    emit("receive_message", {"user": data["user"], "message": message_text, "timestamp": data["timestamp"]}, room=room)
-    msg = Message(sender_id=data["user_id"], receiver_role="public", content=message_text)
+    emit("receive_message", {"user": user.username, "message": message_text, "timestamp": data.get("timestamp")}, room=room)
+    msg = Message(sender_id=user.id, receiver_role="public", content=message_text)
     db.session.add(msg)
     db.session.commit()
+
+
+def _lead_user():
+    user = _socket_user()
+    return user if user and user.check_role("lead") else None
+
+
+@socketio.on("connect", namespace="/secure")
+def secure_connect(auth=None):
+    if not _lead_user():
+        return False  # only leads may use the secure channel
 
 
 @socketio.on("join", namespace="/secure")
 def secure_join(data):
+    user = _lead_user()
+    if not user:
+        return
     room = data["room"]
     join_room(room)
-    emit("status", {"msg": f"{data['user']} joined the secure chat."}, room=room)
+    emit("status", {"msg": f"{user.username} joined the secure chat."}, room=room)
 
 
 @socketio.on("send_message", namespace="/secure")
 def secure_message(data):
+    user = _lead_user()
+    if not user:
+        return
     room = data["room"]
     encrypted_message = cipher_suite.encrypt(data["message"].encode()).decode()
-    emit("receive_message", {"user": data["user"], "message": encrypted_message, "timestamp": data["timestamp"]}, room=room)
-    msg = Message(sender_id=data["user_id"], receiver_role="lead", content=encrypted_message, secure=True, audited=True)
+    emit("receive_message", {"user": user.username, "message": encrypted_message, "timestamp": data.get("timestamp")}, room=room)
+    msg = Message(sender_id=user.id, receiver_role="lead", content=encrypted_message, secure=True, audited=True)
     db.session.add(msg)
     db.session.commit()
 
 
+@app.cli.command("make-lead")
+@click.argument("username")
+def make_lead(username):
+    """Grant the lead (admin) role to an existing user."""
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        raise click.ClickException(f"No user named {username!r}")
+    role = Role.query.filter_by(name="lead").first() or Role(name="lead")
+    if role not in user.roles:
+        user.roles.append(role)
+    db.session.commit()
+    click.echo(f"{username} is now a lead.")
+
+
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=os.environ.get("FLASK_DEBUG") == "1")
